@@ -229,7 +229,7 @@
                         "off"
                     ],
                     "default": "file",
-                    "description": "On save, check the syntax fot eh current file, the workspace, or nothing at all."
+                    "description": "On save, check the syntax for the current file, the workspace, or nothing at all."
                 },
                 "abl.editorContextMenuCommands": {
                     "type": "object",
