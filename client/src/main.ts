@@ -1,9 +1,14 @@
+import * as path from 'path';
+import { ExtensionContext, workspace } from 'vscode';
 import * as vscode from 'vscode';
-import { CheckResult, checkSyntax, removeSyntaxStatus } from './ablCheckSyntax';
-import { AblCompletionItemProvider } from './ablCompletionProvider';
 import { openDataDictionary } from './ablDataDictionary';
-import { AblDocumentSymbolProvider } from './ablDefinitionProvider';
-import { ABL_MODE } from './ablMode';
+import {
+    LanguageClient,
+    LanguageClientOptions,
+    ServerOptions,
+    TransportKind,
+} from 'vscode-languageclient';
+import { removeSyntaxStatus, checkSyntax } from './ablCheckSyntax';
 import { run } from './ablRun';
 import { ablTest } from './ablTest';
 import { checkOpenEdgeConfigFile, checkProgressBinary } from './checkExtensionConfig';
@@ -11,15 +16,36 @@ import { AblDebugConfigurationProvider } from './debugAdapter/ablDebugConfigurat
 
 let errorDiagnosticCollection: vscode.DiagnosticCollection;
 let warningDiagnosticCollection: vscode.DiagnosticCollection;
+let client: LanguageClient;
 
 export function activate(ctx: vscode.ExtensionContext): void {
-    /*
-        let useLangServer = vscode.workspace.getConfiguration('go')['useLanguageServer'];
-        let langServerFlags: string[] = vscode.workspace.getConfiguration('go')['languageServerFlags'] || [];
-        let toolsGopath = vscode.workspace.getConfiguration('go')['toolsGopath'];
-	*/
-    ctx.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('abl', new AblDebugConfigurationProvider()));
+    let serverModule = ctx.asAbsolutePath(
+        path.join('server', 'out', 'server.js')
+    );
 
+    let debugOptions = { execArgv: [ '--nolazy', '--inspect=6009' ] };
+
+    let serverOptions: ServerOptions = {
+        run: { module: serverModule, transport: TransportKind.ipc },
+        debug: {
+            module: serverModule,
+            transport: TransportKind.ipc,
+            options: debugOptions
+        }
+    };
+
+    let clientOptions: LanguageClientOptions = {
+        documentSelector: [
+            { scheme: 'file', language: 'abl' },
+            { scheme: 'untitled', language: 'abl' }
+        ],
+        synchronize: {
+            fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
+        }
+    };
+
+    ctx.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('abl', new AblDebugConfigurationProvider()));
+    
     startBuildOnSaveWatcher(ctx.subscriptions);
 
     ctx.subscriptions.push(vscode.commands.registerCommand('abl.propath', () => {
@@ -72,46 +98,47 @@ export function activate(ctx: vscode.ExtensionContext): void {
     warningDiagnosticCollection = vscode.languages.createDiagnosticCollection('abl-warning');
     ctx.subscriptions.push(warningDiagnosticCollection);
 
-    // Document Symbol Provider, provides Symbols for the Outliner
-    ctx.subscriptions.push(
-        vscode.languages.registerDocumentSymbolProvider(
-            ABL_MODE, new AblDocumentSymbolProvider()));
-
-    // Completion Provider, provides elements for Code completion
-    ctx.subscriptions.push(
-        vscode.languages.registerCompletionItemProvider(
-            ABL_MODE, new AblCompletionItemProvider(), '.', '\"'));
-
-    {
-        const ablConfig = vscode.workspace.getConfiguration('abl');
-        const options = ['Ignore', 'Don\'t show this message again', 'Read the docs'];
-        if (ablConfig.get('warnConfigFile')) {
-            checkOpenEdgeConfigFile().catch((_) => {
-                vscode.window.showInformationMessage('No .openedge.json found, using the default configuration', ...options).then((item) => {
-                    if (item === options[1]) {
-                        ablConfig.update('warnConfigFile', false);
-                    } else if (item === options[2]) {
-                        vscode.env.openExternal(vscode.Uri.parse('https://github.com/chriscamicas/vscode-abl/wiki/Config-file'));
-                    }
-                });
+    const ablConfig = vscode.workspace.getConfiguration('abl');
+    const options = ['Ignore', 'Don\'t show this message again', 'Read the docs'];
+    if (ablConfig.get('warnConfigFile')) {
+        checkOpenEdgeConfigFile().catch((_) => {
+            vscode.window.showInformationMessage('No .openedge.json found; using the default configuration', ...options).then((item) => {
+                if (item === options[1]) {
+                    ablConfig.update('warnConfigFile', false);
+                } else if (item === options[2]) {
+                    vscode.env.openExternal(vscode.Uri.parse('https://github.com/chriscamicas/vscode-abl/wiki/Config-file'));
+                }
             });
-        }
-        if (ablConfig.get('checkProgressBinary')) {
-            checkProgressBinary().catch((_) => {
-                vscode.window.showErrorMessage('Progress binary not found. You should check your configuration', ...options).then((item) => {
-                    if (item === options[1]) {
-                        ablConfig.update('checkProgressBinary', false);
-                    } else if (item === options[2]) {
-                        vscode.env.openExternal(vscode.Uri.parse('https://github.com/chriscamicas/vscode-abl/wiki/Progress-binary-not-found'));
-                    }
-                });
-            });
-        }
+        });
     }
+    if (ablConfig.get('checkProgressBinary')) {
+        checkProgressBinary().catch((_) => {
+            vscode.window.showErrorMessage('Progress binary not found. You should check your configuration', ...options).then((item) => {
+                if (item === options[1]) {
+                    ablConfig.update('checkProgressBinary', false);
+                } else if (item === options[2]) {
+                    vscode.env.openExternal(vscode.Uri.parse('https://github.com/chriscamicas/vscode-abl/wiki/Progress-binary-not-found'));
+                }
+            });
+        });
+    }
+
+    client = new LanguageClient(
+        'openEdgeAblLanguageServer',
+        'OpenEdge ABL Language Server',
+        serverOptions,
+        clientOptions,
+    );
+
+    // This will also launch the server.
+    client.start();
 }
 
-function deactivate() {
-    // no need for deactivation yet
+export function deactivate(): Thenable<void> | undefined {
+    if (!client) {
+        return undefined;
+    }
+    return client.stop();
 }
 
 function runBuilds(document: vscode.TextDocument, ablConfig: vscode.WorkspaceConfiguration) {

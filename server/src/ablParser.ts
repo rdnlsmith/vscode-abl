@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+import * as vscode from 'vscode-languageserver';
 
 // instruction mode (default), comment mode. string mode
 const PARSE_INSTRUCTION = 1;
@@ -16,7 +16,7 @@ export function ParseDocument(document: vscode.TextDocument, token: vscode.Cance
 
         // Cancel this on Request
         if (token.isCancellationRequested) {
-            throw new Error('Operation cancelllation');
+            throw new Error('Operation cancellation');
         }
 
         /*
@@ -24,7 +24,10 @@ export function ParseDocument(document: vscode.TextDocument, token: vscode.Cance
          * add a space at line-end so parser doesnt concat multiline stuff into one word
          * like ELSE<LINE-BREAK>DO -> ELSEDO
          */
-        let comp = document.lineAt(i).text.trim() + ' ';
+        let comp = document.getText({
+            start: { line: i, character: 0 },
+            end: { line: i + 1, character: 0 },
+        }).trim() + ' ';
 
         // set parse status
         parseStatus.parseString = comp;
@@ -120,7 +123,7 @@ export function ParseDocument(document: vscode.TextDocument, token: vscode.Cance
             comp = parseStatus.instructionString.substring(0, iEnd).trim();
             parseStatus.instructionString = parseStatus.instructionString.substr(iEnd + 1);
 
-            let resultSymbol: ParseItem;
+            let resultSymbol: ParseItem | undefined;
             if (endChar === ':') {
                 // block parse
                 resultSymbol = parseBlock(comp);
@@ -168,7 +171,7 @@ class ParseStatus {
 // tslint:disable-next-line: max-classes-per-file
 export class ParseItem {
     public name: string;
-    public line: number;
+    public line: number | undefined;
     public type: vscode.SymbolKind;
 
     constructor(pName: string, pType?: vscode.SymbolKind) {
@@ -178,7 +181,7 @@ export class ParseItem {
             this.type = pType;
         }
         this.name = pName;
-        this.line = null;
+        this.line = undefined;
     }
 }
 
@@ -245,10 +248,10 @@ function parseForStringEnd(pStatus: ParseStatus): ParseStatus {
 }
 
 // create symbol for Block
-function parseBlock(pBlock: string): ParseItem {
+function parseBlock(pBlock: string): ParseItem | undefined {
     // empty string, nothing to do
     if (pBlock.length === 0) {
-        return null;
+        return undefined;
     }
     // last char is colon, we wont need that
     if (pBlock.substr(pBlock.length - 1, 1) === ':' ) {
@@ -258,7 +261,7 @@ function parseBlock(pBlock: string): ParseItem {
     const words = pBlock.split(/\s+/);
     // no words, no work
     if (words.length === 0) {
-        return null;
+        return undefined;
     }
     // is this a label or a block
     // ABL is case-insensitive, TS is not; make our life easier by coverting string to lowercase
@@ -283,7 +286,7 @@ function parseBlock(pBlock: string): ParseItem {
         case 'triggers':
         case 'when': // may precede a block
             // ignore those blocks
-            return null;
+            return undefined;
         case 'class':
             return new ParseItem(words[1], vscode.SymbolKind.Class);
         case 'constructor':
@@ -328,7 +331,7 @@ function parseBlock(pBlock: string): ParseItem {
             if (words[iM]) {
                 return new ParseItem(RemoveBracketFromName(words[iM]), vscode.SymbolKind.Method);
             }
-            return null;
+            return undefined;
         // must be a label
         default:
             return new ParseItem(words[0], vscode.SymbolKind.Key);
@@ -337,7 +340,7 @@ function parseBlock(pBlock: string): ParseItem {
 }
 
 // create symbol for instruction
-function parseInstruction(pInstruction: string): ParseItem {
+function parseInstruction(pInstruction: string): ParseItem | undefined {
     // ABL is case-insensitive, TS is not; make our life easier by coverting string to lowercase
     if (pInstruction.substr(0, 3).toLowerCase().startsWith('def')) {
         const words = pInstruction.split(/\s+/);
@@ -434,7 +437,7 @@ function parseInstruction(pInstruction: string): ParseItem {
             }
         }
     }
-    return null;
+    return undefined;
 }
 
 // Helper Function to Remove Brackets from names, Example: "Func(input)" -> "Func"

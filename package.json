@@ -16,8 +16,9 @@
     "scripts": {
         "build": "vsce package",
         "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
+        "compile": "tsc -b",
+        "watch": "tsc -watch -b",
+        "postinstall": "cd client && npm install && cd ../server && npm install && cd ..",
         "pretest": "npm run compile",
         "test": "mocha -u tdd ./out/test",
         "lint": "tslint --project ."
@@ -36,7 +37,7 @@
         "onLanguage:abl",
         "onDebug"
     ],
-    "main": "./out/src/main",
+    "main": "./client/out/main",
     "contributes": {
         "languages": [
             {
@@ -302,7 +303,6 @@
         "@types/glob": "^7.1.1",
         "@types/mocha": "^5.2.6",
         "@types/node": "^10.12.21",
-        "@types/vscode": "^1.36.0",
         "mocha": "^6.1.4",
         "typescript": "^3.3.1",
         "tslint": "^5.12.1",

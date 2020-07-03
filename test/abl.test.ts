@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { convertDataToDebuggerMessage } from '../src/debugAdapter/messages';
+import { convertDataToDebuggerMessage } from '../client/src/debugAdapter/messages';
 
 suite('OpenEdge ABL Extension Tests', () => {
     test('Test MSG_CLASSINFO Processing', (done) => {
