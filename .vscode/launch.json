@@ -8,14 +8,17 @@
             "request": "launch",
             "runtimeExecutable": "${execPath}",
             "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}"
+                "--extensionDevelopmentPath=${workspaceRoot}"
             ],
             "stopOnEntry": false,
             "sourceMaps": true,
             "outFiles": [
-                "${workspaceFolder}/out/**/*.js"
+                "${workspaceRoot}/client/out/**/*.js"
             ],
-			"preLaunchTask": "npm: watch"
+			"preLaunchTask": {
+                "type": "npm",
+                "script": "watch"
+            }
         },
     	{
             "name": "Launch as server",
@@ -46,6 +49,14 @@
                 "${workspaceFolder}/out/**/*.js"
             ],
             "preLaunchTask": "npm: watch"
+        },
+        {
+            "name": "Attach to Language Server",
+            "type": "node",
+            "request": "attach",
+            "port": 6009,
+            "restart": true,
+            "outFiles": ["${workspaceRoot}/server/out/**/*.js"]
         }
     ],
     "compounds": [
@@ -54,6 +65,13 @@
             "configurations": [
                 "Run Extension",
                 "Launch as server"
+            ]
+        },
+        {
+            "name": "Extension + Language Server",
+            "configurations": [
+                "Run Extension",
+                "Attach to Language Server"
             ]
         }
     ]
